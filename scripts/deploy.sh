@@ -5,7 +5,12 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-REMOTE="${RT_REMOTE:-git@github.com:SamirSaidani/rhythm-trainer.git}"
+REMOTE="${RT_REMOTE:-https://github.com/SamirSaidani/rhythm-trainer.git}"
+
+# Over HTTPS, let the GitHub CLI provide credentials for this run only (no global git config change).
+if [[ "$REMOTE" == https://* ]] && command -v gh >/dev/null; then
+  export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0='!gh auth git-credential'
+fi
 MESSAGE="${1:-Update}"
 
 command -v rsync >/dev/null || { echo "rsync is required" >&2; exit 1; }
