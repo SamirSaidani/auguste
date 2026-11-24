@@ -261,7 +261,6 @@
       sens: settings.sensitivity,
     };
     history.unshift(entry);
-    history = history.slice(0, 200);
     save('history', history);
     showResult(entry);
     renderHistory();
@@ -458,6 +457,8 @@
   }
 
   // ---------- boot ----------
+  // Ask the browser not to evict saved runs when the phone runs low on space.
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* app still works online */ });
   }
