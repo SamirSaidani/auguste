@@ -1,12 +1,14 @@
 // Service worker: makes the app installable and usable offline.
 // Strategy: serve from cache, refresh the cache in the background (stale-while-revalidate).
-// Bump VERSION on each release so old caches are dropped.
-const VERSION = 'auguste-1';
+// The cache name follows js/version.js: bump the version on each release so old caches are dropped.
+importScripts('js/version.js');
+const VERSION = 'auguste-' + self.AUGUSTE_VERSION;
 const ASSETS = [
   './',
   'index.html',
   'manifest.webmanifest',
   'css/app.css',
+  'js/version.js',
   'js/i18n.js',
   'js/rhythm.js',
   'js/scoring.js',

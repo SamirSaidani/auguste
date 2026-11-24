@@ -19,6 +19,7 @@
   const settings = Object.assign({
     tempo: 60, metro: 'all', guide: false, sensitivity: 5, volume: 0.6, goodTol: 30, okTol: 50, exercise: 'step:0:0', lines: [],
   }, load('settings', {}));
+  const firstBoot = load('settings', null) === null;
   let calibration = load('calibration', null);
   let userLessons = load('lessons', []); // [{text}]
   let history = load('history', []);
@@ -261,10 +262,18 @@
       lost: r.lost,
       bars: r.measures.map((m) => m.grades.map((g) => ({ good: 'G', approx: 'a', off: 'x', missed: '.' }[g])).join('') + (m.extra ? '+' + m.extra : '')).join(' '),
       sens: settings.sensitivity,
+      appVersion: self.AUGUSTE_VERSION,
     };
     history.unshift(entry);
     save('history', history);
-    syncPending();
+    feedback('result-sync', 'busy', '');
+    if (sync) {
+      feedback('result-sync', 'busy', t('syncSyncing'));
+      syncPending().then((r) => {
+        if (r.error) feedback('result-sync', 'err', t('syncAutoFail', { why: r.error }));
+        else feedback('result-sync', 'ok', t('syncAuto', { repo: sync.repo }));
+      });
+    }
     showResult(entry);
     renderHistory();
   }
@@ -391,26 +400,46 @@
     throw new Error('HTTP ' + res.status);
   }
 
-  let syncing = false;
-  async function syncPending() {
-    if (!sync || syncing) return 0;
-    syncing = true;
-    let sent = 0;
-    try {
-      for (const e of history.slice().reverse()) {
-        if (e.synced) continue;
-        await pushRun(sync, e);
-        e.synced = true;
-        sent += 1;
-        save('history', history);
+  // Turns a failed request into a sentence the user can act on.
+  function why(err) {
+    const m = /HTTP (\d+)/.exec((err && err.message) || '');
+    if (!m) return t('errNetwork');
+    const code = +m[1];
+    return code === 401 ? t('err401') : code === 403 ? t('err403') : code === 404 ? t('err404') : t('errOther', { code });
+  }
+
+  function feedback(id, kind, text) {
+    const el = $(id);
+    el.hidden = !text;
+    el.className = 'feedback ' + kind;
+    el.textContent = text || '';
+  }
+
+  let syncing = null;
+  // Sends every run not sent yet. Returns {sent, error}.
+  function syncPending() {
+    if (!sync) return Promise.resolve({ sent: 0, error: null });
+    if (syncing) return syncing;
+    syncing = (async () => {
+      let sent = 0;
+      try {
+        for (const e of history.slice().reverse()) {
+          if (e.synced) continue;
+          await pushRun(sync, e);
+          e.synced = true;
+          sent += 1;
+          save('history', history);
+        }
+        showSync();
+        return { sent, error: null };
+      } catch (err) {
+        showSync(why(err));
+        return { sent, error: why(err) };
+      } finally {
+        syncing = null;
       }
-      showSync();
-    } catch (err) {
-      showSync(err.message);
-    } finally {
-      syncing = false;
-    }
-    return sent;
+    })();
+    return syncing;
   }
 
   function showSync(error) {
@@ -427,6 +456,7 @@
 
   async function testAndSave(cfg) {
     let created = false;
+    feedback('sync-feedback', 'busy', t('syncTesting'));
     try {
       let res = await apiCall(cfg, 'GET', '');
       if (res.status === 404) {
@@ -443,31 +473,48 @@
         throw new Error('HTTP ' + res.status);
       }
     } catch (err) {
-      showSync(err.message || 'network');
+      feedback('sync-feedback', 'err', t('syncFail', { why: why(err) }));
       return false;
     }
     sync = cfg;
     save('sync', sync);
     showSync();
-    if (created) $('sync-status').textContent = t('syncCreated', { repo: cfg.repo }) + ' ' + $('sync-status').textContent;
+    feedback('sync-feedback', 'ok', (created ? t('syncCreated', { repo: cfg.repo }) + ' ' : '') + t('syncSaved', { repo: cfg.repo }));
     return true;
   }
 
   $('sync-save').addEventListener('click', async () => {
+    const btn = $('sync-save');
     const target = parseRepoUrl($('sync-url').value);
-    if (!target) { $('sync-status').textContent = t('syncBadUrl'); return; }
-    const cfg = Object.assign(target, { token: $('sync-token').value.trim() });
-    if (await testAndSave(cfg)) syncPending();
+    if (!target) { feedback('sync-feedback', 'err', t('syncBadUrl')); return; }
+    const token = $('sync-token').value.trim();
+    if (!token) { feedback('sync-feedback', 'err', t('syncNotConfigured')); return; }
+    btn.disabled = true;
+    try {
+      if (await testAndSave(Object.assign(target, { token }))) {
+        const r = await syncPending();
+        if (r.sent) feedback('sync-feedback', 'ok', $('sync-feedback').textContent + ' ' + t('syncSent', { n: r.sent, repo: sync.repo }));
+      }
+    } finally {
+      btn.disabled = false;
+    }
   });
   $('sync-now').addEventListener('click', async () => {
-    const n = await syncPending();
-    if (sync && n) $('sync-status').textContent = t('syncSent', { n, repo: sync.repo });
+    if (!sync) { feedback('sync-feedback', 'err', t('syncNotConfigured')); return; }
+    const btn = $('sync-now');
+    btn.disabled = true;
+    feedback('sync-feedback', 'busy', t('syncSyncing'));
+    const r = await syncPending();
+    btn.disabled = false;
+    if (r.error) feedback('sync-feedback', 'err', t('syncFail', { why: r.error }));
+    else feedback('sync-feedback', 'ok', r.sent ? t('syncSent', { n: r.sent, repo: sync.repo }) : t('syncUpToDate'));
   });
   $('sync-off').addEventListener('click', () => {
     sync = null;
     try { localStorage.removeItem('rt.sync'); } catch (e) { /* storage unavailable */ }
     fillSyncForm();
     showSync();
+    feedback('sync-feedback', 'ok', t('syncDisconnected'));
   });
 
   // Setup link: <app>#sync=<base64url JSON>. Stored, then removed from the address bar.
@@ -689,6 +736,8 @@
   }
 
   // ---------- boot ----------
+  $('version').textContent = 'v' + self.AUGUSTE_VERSION;
+  if (firstBoot && current().metro) settings.metro = current().metro;
   // Ask the browser not to evict saved runs when the phone runs low on space.
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   if ('serviceWorker' in navigator) {
