@@ -458,6 +458,9 @@
   }
 
   // ---------- boot ----------
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* app still works online */ });
+  }
   parseUserLessons();
   applyTexts();
   setTempo(settings.tempo);
