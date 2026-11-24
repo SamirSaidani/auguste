@@ -1,7 +1,7 @@
 // Service worker: makes the app installable and usable offline.
 // Strategy: serve from cache, refresh the cache in the background (stale-while-revalidate).
 // Bump VERSION on each release so old caches are dropped.
-const VERSION = 'rt-3';
+const VERSION = 'rt-4';
 const ASSETS = [
   './',
   'index.html',

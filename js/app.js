@@ -330,6 +330,76 @@
     copyText(text, $('copy-status'), $('report'));
   });
 
+  // ---------- export / import (works for anyone using the app) ----------
+  function stamp() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  function reportsText() {
+    return history.slice().reverse().map(report).join('\n\n') + '\n';
+  }
+
+  function download(name, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  $('export-txt').addEventListener('click', () => {
+    if (!history.length) { $('export-status').textContent = t('nothingToExport'); return; }
+    download('rhythm-trainer-reports-' + stamp() + '.txt', reportsText(), 'text/plain');
+    $('export-status').textContent = t('exported', { n: history.length });
+  });
+
+  $('export-json').addEventListener('click', () => {
+    if (!history.length) { $('export-status').textContent = t('nothingToExport'); return; }
+    const data = { app: 'rhythm-trainer', format: 1, exported: new Date().toISOString(), history, lessons: userLessons };
+    download('rhythm-trainer-backup-' + stamp() + '.json', JSON.stringify(data, null, 1), 'application/json');
+    $('export-status').textContent = t('exported', { n: history.length });
+  });
+
+  // Android share sheet (Drive, Nextcloud, e-mail, messaging…) when the browser can share files.
+  const canShareFiles = !!(navigator.canShare && window.File &&
+    navigator.canShare({ files: [new File(['x'], 'x.txt', { type: 'text/plain' })] }));
+  $('share-txt').hidden = !canShareFiles;
+  $('share-txt').addEventListener('click', async () => {
+    if (!history.length) { $('export-status').textContent = t('nothingToExport'); return; }
+    const file = new File([reportsText()], 'rhythm-trainer-reports-' + stamp() + '.txt', { type: 'text/plain' });
+    try { await navigator.share({ files: [file], title: 'Rhythm Trainer' }); } catch (e) { /* cancelled */ }
+  });
+
+  $('import-json').addEventListener('change', async (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (data.app !== 'rhythm-trainer' || !Array.isArray(data.history)) throw new Error('format');
+      const key = (e) => e.date + '|' + e.id;
+      const known = new Set(history.map(key));
+      const fresh = data.history.filter((e) => e && e.date && e.id && !known.has(key(e)));
+      history = history.concat(fresh).sort((a, b) => (a.date < b.date ? 1 : -1));
+      save('history', history);
+      if (Array.isArray(data.lessons)) {
+        const texts = new Set(userLessons.map((u) => u.text));
+        data.lessons.forEach((u) => { if (u && typeof u.text === 'string' && !texts.has(u.text)) userLessons.push({ text: u.text }); });
+        save('lessons', userLessons);
+        parseUserLessons(); fillExercises(); renderLessons();
+      }
+      renderHistory();
+      $('export-status').textContent = t('imported', { n: fresh.length, d: data.history.length - fresh.length });
+    } catch (e) {
+      $('export-status').textContent = t('importFailed');
+    }
+  });
+
   function renderHistory() {
     const ol = $('history');
     ol.innerHTML = '';
