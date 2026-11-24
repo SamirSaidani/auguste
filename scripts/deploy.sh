@@ -5,7 +5,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-REMOTE="${RT_REMOTE:-https://github.com/SamirSaidani/rhythm-trainer.git}"
+REMOTE="${RT_REMOTE:-https://github.com/SamirSaidani/auguste.git}"
 
 # Over HTTPS, let the GitHub CLI provide credentials for this run only (no global git config change).
 if [[ "$REMOTE" == https://* ]] && command -v gh >/dev/null; then
