@@ -17,8 +17,10 @@ command -v rsync >/dev/null || { echo "rsync is required" >&2; exit 1; }
 
 node --test "$HERE/tests/run-tests.js"
 
-# Audit: no absolute home paths, credentials or private hosts in published files.
-if grep -rnIE "/home/|/Users/|api[_-]?key|secret|password|token=|BEGIN [A-Z ]*PRIVATE KEY" "$HERE" \
+# Audit: no absolute home paths and no secret values in published files.
+# Looks for values (token formats, private keys, literal assignments), not for words like "password".
+AUDIT='/home/|/Users/|BEGIN [A-Z ]*PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_|glpat-|\b[0-9a-f]{40}\b|(password|secret|token|api[_-]?key)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']{8,}'
+if grep -rnIE "$AUDIT" "$HERE" \
     --exclude-dir=.git --exclude=deploy.sh; then
   echo "Audit failed: remove the lines above before publishing." >&2
   exit 1

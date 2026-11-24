@@ -262,6 +262,7 @@
     };
     history.unshift(entry);
     save('history', history);
+    syncPending();
     showResult(entry);
     renderHistory();
   }
@@ -329,6 +330,136 @@
     $('result').hidden = false;
     copyText(text, $('copy-status'), $('report'));
   });
+
+  // ---------- sync to a Git repository (optional, agent-readable) ----------
+  // One JSON file per run: runs/YYYY/MM/DD/<timestamp>-<exercise>.json
+  // Gitea/Forgejo: POST {api}/repos/{repo}/contents/{path}; GitHub: PUT, same body.
+  let sync = load('sync', null);
+
+  function b64utf8(text) {
+    const bytes = new TextEncoder().encode(text);
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return btoa(bin);
+  }
+
+  function runPath(e) {
+    const d = e.date.slice(0, 10).split('-');
+    return 'runs/' + d[0] + '/' + d[1] + '/' + d[2] + '/' + e.date.replace(/[:.]/g, '-') + '-' + e.id + '.json';
+  }
+
+  function apiBase(cfg) {
+    return cfg.kind === 'github' ? 'https://api.github.com' : cfg.api.replace(/\/+$/, '');
+  }
+
+  async function apiCall(cfg, method, path, body) {
+    const headers = { Authorization: (cfg.kind === 'github' ? 'Bearer ' : 'token ') + cfg.token, Accept: 'application/json' };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(apiBase(cfg) + '/repos/' + cfg.repo + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  }
+
+  async function pushRun(cfg, e) {
+    const doc = Object.assign({ format: 1, app: 'rhythm-trainer' }, e, { report: report(e) });
+    delete doc.synced;
+    const res = await apiCall(cfg, cfg.kind === 'github' ? 'PUT' : 'POST', '/contents/' + runPath(e), {
+      message: 'Run ' + e.id + ' ' + e.date,
+      content: b64utf8(JSON.stringify(doc, null, 1) + '\n'),
+    });
+    // 409/422: the file already exists, so the run was sent before.
+    if (res.ok || res.status === 409 || res.status === 422) return true;
+    throw new Error('HTTP ' + res.status);
+  }
+
+  let syncing = false;
+  async function syncPending() {
+    if (!sync || syncing) return 0;
+    syncing = true;
+    let sent = 0;
+    try {
+      for (const e of history.slice().reverse()) {
+        if (e.synced) continue;
+        await pushRun(sync, e);
+        e.synced = true;
+        sent += 1;
+        save('history', history);
+      }
+      showSync();
+    } catch (err) {
+      showSync(err.message);
+    } finally {
+      syncing = false;
+    }
+    return sent;
+  }
+
+  function showSync(error) {
+    const el = $('sync-status');
+    if (!sync) { el.textContent = t('syncDisabled'); return; }
+    if (error) { el.textContent = t('syncFail', { why: error }); return; }
+    el.textContent = t('syncOk', { repo: sync.repo, pending: history.filter((e) => !e.synced).length });
+  }
+
+  function fillSyncForm() {
+    $('sync-kind').value = (sync && sync.kind) || 'gitea';
+    $('sync-api').value = (sync && sync.api) || '';
+    $('sync-repo').value = (sync && sync.repo) || '';
+    $('sync-token').value = (sync && sync.token) || '';
+  }
+
+  async function testAndSave(cfg) {
+    try {
+      const res = await apiCall(cfg, 'GET', '');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+    } catch (err) {
+      showSync(err.message || 'network');
+      return false;
+    }
+    sync = cfg;
+    save('sync', sync);
+    showSync();
+    return true;
+  }
+
+  $('sync-save').addEventListener('click', async () => {
+    const cfg = {
+      kind: $('sync-kind').value,
+      api: $('sync-api').value.trim(),
+      repo: $('sync-repo').value.trim().replace(/^\/+|\/+$/g, ''),
+      token: $('sync-token').value.trim(),
+    };
+    if (await testAndSave(cfg)) syncPending();
+  });
+  $('sync-now').addEventListener('click', async () => {
+    const n = await syncPending();
+    if (sync && n) $('sync-status').textContent = t('syncSent', { n, repo: sync.repo });
+  });
+  $('sync-off').addEventListener('click', () => {
+    sync = null;
+    try { localStorage.removeItem('rt.sync'); } catch (e) { /* storage unavailable */ }
+    fillSyncForm();
+    showSync();
+  });
+
+  // Setup link: <app>#sync=<base64url JSON>. Stored, then removed from the address bar.
+  async function readSetupLink() {
+    const m = /#sync=([A-Za-z0-9_-]+)/.exec(location.hash);
+    if (!m) return;
+    window.history.replaceState(null, '', location.pathname + location.search);
+    try {
+      const pad = m[1] + '==='.slice((m[1].length + 3) % 4);
+      const bin = atob(pad.replace(/-/g, '+').replace(/_/g, '/'));
+      const cfg = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+      if (!cfg.kind || !cfg.repo || !cfg.token) throw new Error('format');
+      $('sync-panel').open = true;
+      if (await testAndSave(cfg)) {
+        $('sync-status').textContent = t('syncFromLink') + ' ' + $('sync-status').textContent;
+        fillSyncForm();
+        syncPending();
+      }
+    } catch (err) {
+      showSync('link');
+    }
+  }
 
   // ---------- export / import (works for anyone using the app) ----------
   function stamp() {
@@ -523,6 +654,7 @@
     showCalibration();
     renderHistory();
     renderLessons();
+    showSync();
     if (!running) $('go').textContent = t('start');
   }
 
@@ -542,6 +674,9 @@
   $('good-tol').value = settings.goodTol;
   $('ok-tol').value = settings.okTol;
   drawScore();
+  fillSyncForm();
+  readSetupLink().then(() => syncPending());
+  window.addEventListener('hashchange', () => readSetupLink());
   let resizeTimer;
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => drawScore(lastColors), 150); });
 })();

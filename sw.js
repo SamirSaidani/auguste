@@ -1,7 +1,7 @@
 // Service worker: makes the app installable and usable offline.
 // Strategy: serve from cache, refresh the cache in the background (stale-while-revalidate).
 // Bump VERSION on each release so old caches are dropped.
-const VERSION = 'rt-4';
+const VERSION = 'rt-5';
 const ASSETS = [
   './',
   'index.html',
@@ -32,8 +32,13 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Only the app's own files, its libraries and fonts are cached; API calls (sync) always go to the network.
+const CACHED_HOSTS = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin && !CACHED_HOSTS.includes(url.hostname)) return;
   event.respondWith(
     caches.open(VERSION).then(async (cache) => {
       const cached = await cache.match(event.request, { ignoreSearch: true });

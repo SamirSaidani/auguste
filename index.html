@@ -121,6 +121,25 @@
     <ul class="lesson-list" id="lesson-list"></ul>
   </details>
 
+  <details class="panel" id="sync-panel">
+    <summary data-i18n="sync"></summary>
+    <p class="hint" data-i18n="syncHint"></p>
+    <p id="sync-status"></p>
+    <label class="field"><span data-i18n="syncKind"></span>
+      <select id="sync-kind"><option value="gitea">Gitea / Forgejo</option><option value="github">GitHub</option></select></label>
+    <label class="field"><span data-i18n="syncApi"></span>
+      <input type="url" id="sync-api" placeholder="https://git.example.org/api/v1" autocomplete="off"></label>
+    <label class="field"><span data-i18n="syncRepo"></span>
+      <input type="text" id="sync-repo" placeholder="owner/rhythm-trainer-data" autocomplete="off"></label>
+    <label class="field"><span data-i18n="syncToken"></span>
+      <input type="password" id="sync-token" autocomplete="off"></label>
+    <div class="export">
+      <button type="button" class="btn" id="sync-save" data-i18n="syncSave"></button>
+      <button type="button" class="btn ghost" id="sync-now" data-i18n="syncNow"></button>
+      <button type="button" class="btn ghost" id="sync-off" data-i18n="syncOff"></button>
+    </div>
+  </details>
+
   <details class="panel">
     <summary data-i18n="settings"></summary>
     <label class="field"><span data-i18n="sensitivity"></span>
