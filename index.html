@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Rhythm Trainer</title>
+<title>Auguste</title>
 <meta name="description" content="Read a rhythm, clap it, and see where each clap landed. Microphone-based rhythm reading practice.">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0e131a">
@@ -17,7 +17,7 @@
 <body>
 <header class="top">
   <div class="brand">
-    <h1>Rhythm Trainer</h1>
+    <h1>Auguste</h1>
     <p class="tagline" data-i18n="tagline"></p>
   </div>
   <div class="lang" role="group" aria-label="Language">
@@ -125,12 +125,8 @@
     <summary data-i18n="sync"></summary>
     <p class="hint" data-i18n="syncHint"></p>
     <p id="sync-status"></p>
-    <label class="field"><span data-i18n="syncKind"></span>
-      <select id="sync-kind"><option value="gitea">Gitea / Forgejo</option><option value="github">GitHub</option></select></label>
-    <label class="field"><span data-i18n="syncApi"></span>
-      <input type="url" id="sync-api" placeholder="https://git.example.org/api/v1" autocomplete="off"></label>
-    <label class="field"><span data-i18n="syncRepo"></span>
-      <input type="text" id="sync-repo" placeholder="owner/rhythm-trainer-data" autocomplete="off"></label>
+    <label class="field"><span data-i18n="syncRepoUrl"></span>
+      <input type="url" id="sync-url" placeholder="https://git.example.org/you/auguste-data" autocomplete="off" inputmode="url"></label>
     <label class="field"><span data-i18n="syncToken"></span>
       <input type="password" id="sync-token" autocomplete="off"></label>
     <div class="export">

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a Gitea server to receive Rhythm Trainer runs from a phone.
+"""Prepare a Gitea server to receive Auguste runs from a phone.
 
 Creates, if missing:
   1. a private data repository owned by the admin token's user;
@@ -16,7 +16,7 @@ The admin token is read from the GITEA_TOKEN environment variable, or from --adm
 
 Usage:
   GITEA_TOKEN=... setup-gitea-sync.py --server https://git.example.org \
-      --app https://user.github.io/rhythm-trainer/ [--repo rhythm-trainer-data] [--bot rhythm-bot]
+      --app https://user.github.io/auguste/ [--repo auguste-data] [--bot auguste-bot]
       [--out-dir DIR]
 """
 import argparse
@@ -68,9 +68,9 @@ def main():
     ap.add_argument("--server", required=True)
     ap.add_argument("--admin-token-file", type=Path)
     ap.add_argument("--app", required=True, help="URL of the published app")
-    ap.add_argument("--repo", default="rhythm-trainer-data")
-    ap.add_argument("--bot", default="rhythm-bot")
-    ap.add_argument("--out-dir", type=Path, default=Path.home() / ".config" / "rhythm-trainer")
+    ap.add_argument("--repo", default="auguste-data")
+    ap.add_argument("--bot", default="auguste-bot")
+    ap.add_argument("--out-dir", type=Path, default=Path.home() / ".config" / "auguste")
     args = ap.parse_args()
 
     token = os.environ.get("GITEA_TOKEN") or (args.admin_token_file.read_text().strip() if args.admin_token_file else "")
@@ -90,7 +90,7 @@ def main():
     else:
         status, res = admin.call("POST", "/user/repos", {
             "name": args.repo, "private": True, "auto_init": True, "default_branch": "main",
-            "description": "Rhythm Trainer runs, written by the app after each run.",
+            "description": "Auguste rhythm runs, written by the app after each run.",
         })
         if status != 201:
             sys.exit("Could not create the repository: %s %s" % (status, res))
@@ -121,7 +121,7 @@ def main():
 
     # 3. Bot token, repository scope only. Created with the bot's own credentials.
     bot = Api(args.server, basic=(args.bot, password))
-    name = "rhythm-trainer-phone-" + secrets.token_hex(3)
+    name = "auguste-phone-" + secrets.token_hex(3)
     status, res = bot.call("POST", "/users/%s/tokens" % args.bot, {"name": name, "scopes": ["write:repository"]})
     if status != 201 or not res or not res.get("sha1"):
         sys.exit("Could not create the bot token: %s %s" % (status, res))

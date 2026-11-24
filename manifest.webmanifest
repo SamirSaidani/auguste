@@ -1,6 +1,6 @@
 {
-  "name": "Rhythm Trainer",
-  "short_name": "Rhythm",
+  "name": "Auguste",
+  "short_name": "Auguste",
   "description": "Read a rhythm, clap it, and see where each clap landed.",
   "id": "./",
   "start_url": "./",

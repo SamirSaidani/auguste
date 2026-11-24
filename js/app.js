@@ -5,6 +5,8 @@
   const $ = (id) => document.getElementById(id);
   const engine = new RTAudio.Engine();
   const VERSION = 1;
+  // Data written by earlier versions carries the former name.
+  const APP_IDS = ['auguste', 'rhythm-trainer'];
 
   // ---------- storage (per phone, optional) ----------
   function load(key, fallback) {
@@ -352,14 +354,33 @@
     return cfg.kind === 'github' ? 'https://api.github.com' : cfg.api.replace(/\/+$/, '');
   }
 
-  async function apiCall(cfg, method, path, body) {
+  async function apiFetch(cfg, method, path, body) {
     const headers = { Authorization: (cfg.kind === 'github' ? 'Bearer ' : 'token ') + cfg.token, Accept: 'application/json' };
     if (body) headers['Content-Type'] = 'application/json';
-    return fetch(apiBase(cfg) + '/repos/' + cfg.repo + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    return fetch(apiBase(cfg) + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  }
+
+  function apiCall(cfg, method, path, body) {
+    return apiFetch(cfg, method, '/repos/' + cfg.repo + path, body);
+  }
+
+  // https://github.com/owner/name -> GitHub; https://host/owner/name -> Gitea or Forgejo on that host.
+  function parseRepoUrl(text) {
+    let u;
+    try { u = new URL(text.trim()); } catch (e) { return null; }
+    const parts = u.pathname.replace(/\.git$/, '').split('/').filter(Boolean);
+    if (u.protocol !== 'https:' || parts.length !== 2) return null;
+    const repo = parts.join('/');
+    if (u.hostname === 'github.com') return { kind: 'github', api: 'https://api.github.com', repo, url: u.origin + '/' + repo };
+    return { kind: 'gitea', api: u.origin + '/api/v1', repo, url: u.origin + '/' + repo };
+  }
+
+  function repoUrl(cfg) {
+    return cfg.url || (cfg.kind === 'github' ? 'https://github.com/' : cfg.api.replace(/\/api\/v1\/?$/, '') + '/') + cfg.repo;
   }
 
   async function pushRun(cfg, e) {
-    const doc = Object.assign({ format: 1, app: 'rhythm-trainer' }, e, { report: report(e) });
+    const doc = Object.assign({ format: 1, app: 'auguste' }, e, { report: report(e) });
     delete doc.synced;
     const res = await apiCall(cfg, cfg.kind === 'github' ? 'PUT' : 'POST', '/contents/' + runPath(e), {
       message: 'Run ' + e.id + ' ' + e.date,
@@ -400,16 +421,27 @@
   }
 
   function fillSyncForm() {
-    $('sync-kind').value = (sync && sync.kind) || 'gitea';
-    $('sync-api').value = (sync && sync.api) || '';
-    $('sync-repo').value = (sync && sync.repo) || '';
+    $('sync-url').value = sync ? repoUrl(sync) : '';
     $('sync-token').value = (sync && sync.token) || '';
   }
 
   async function testAndSave(cfg) {
+    let created = false;
     try {
-      const res = await apiCall(cfg, 'GET', '');
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      let res = await apiCall(cfg, 'GET', '');
+      if (res.status === 404) {
+        // Create the repository, private, when it belongs to the key's owner.
+        const me = await apiFetch(cfg, 'GET', '/user');
+        const login = me.ok ? (await me.json()).login : null;
+        if (!login || login.toLowerCase() !== cfg.repo.split('/')[0].toLowerCase()) throw new Error('HTTP 404');
+        res = await apiFetch(cfg, 'POST', '/user/repos', {
+          name: cfg.repo.split('/')[1], private: true, auto_init: true, description: 'Auguste rhythm runs, written by the app.',
+        });
+        if (res.status !== 201) throw new Error('HTTP ' + res.status);
+        created = true;
+      } else if (!res.ok) {
+        throw new Error('HTTP ' + res.status);
+      }
     } catch (err) {
       showSync(err.message || 'network');
       return false;
@@ -417,16 +449,14 @@
     sync = cfg;
     save('sync', sync);
     showSync();
+    if (created) $('sync-status').textContent = t('syncCreated', { repo: cfg.repo }) + ' ' + $('sync-status').textContent;
     return true;
   }
 
   $('sync-save').addEventListener('click', async () => {
-    const cfg = {
-      kind: $('sync-kind').value,
-      api: $('sync-api').value.trim(),
-      repo: $('sync-repo').value.trim().replace(/^\/+|\/+$/g, ''),
-      token: $('sync-token').value.trim(),
-    };
+    const target = parseRepoUrl($('sync-url').value);
+    if (!target) { $('sync-status').textContent = t('syncBadUrl'); return; }
+    const cfg = Object.assign(target, { token: $('sync-token').value.trim() });
     if (await testAndSave(cfg)) syncPending();
   });
   $('sync-now').addEventListener('click', async () => {
@@ -485,14 +515,14 @@
 
   $('export-txt').addEventListener('click', () => {
     if (!history.length) { $('export-status').textContent = t('nothingToExport'); return; }
-    download('rhythm-trainer-reports-' + stamp() + '.txt', reportsText(), 'text/plain');
+    download('auguste-reports-' + stamp() + '.txt', reportsText(), 'text/plain');
     $('export-status').textContent = t('exported', { n: history.length });
   });
 
   $('export-json').addEventListener('click', () => {
     if (!history.length) { $('export-status').textContent = t('nothingToExport'); return; }
-    const data = { app: 'rhythm-trainer', format: 1, exported: new Date().toISOString(), history, lessons: userLessons };
-    download('rhythm-trainer-backup-' + stamp() + '.json', JSON.stringify(data, null, 1), 'application/json');
+    const data = { app: 'auguste', format: 1, exported: new Date().toISOString(), history, lessons: userLessons };
+    download('auguste-backup-' + stamp() + '.json', JSON.stringify(data, null, 1), 'application/json');
     $('export-status').textContent = t('exported', { n: history.length });
   });
 
@@ -502,8 +532,8 @@
   $('share-txt').hidden = !canShareFiles;
   $('share-txt').addEventListener('click', async () => {
     if (!history.length) { $('export-status').textContent = t('nothingToExport'); return; }
-    const file = new File([reportsText()], 'rhythm-trainer-reports-' + stamp() + '.txt', { type: 'text/plain' });
-    try { await navigator.share({ files: [file], title: 'Rhythm Trainer' }); } catch (e) { /* cancelled */ }
+    const file = new File([reportsText()], 'auguste-reports-' + stamp() + '.txt', { type: 'text/plain' });
+    try { await navigator.share({ files: [file], title: 'Auguste' }); } catch (e) { /* cancelled */ }
   });
 
   $('import-json').addEventListener('change', async (ev) => {
@@ -512,7 +542,7 @@
     if (!file) return;
     try {
       const data = JSON.parse(await file.text());
-      if (data.app !== 'rhythm-trainer' || !Array.isArray(data.history)) throw new Error('format');
+      if (!APP_IDS.includes(data.app) || !Array.isArray(data.history)) throw new Error('format');
       const key = (e) => e.date + '|' + e.id;
       const known = new Set(history.map(key));
       const fresh = data.history.filter((e) => e && e.date && e.id && !known.has(key(e)));
