@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rhythm Trainer</title>
+<meta name="description" content="Read a rhythm, clap it, and see where each clap landed. Microphone-based rhythm reading practice.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Rhythm Trainer</h1>
+    <p class="tagline" data-i18n="tagline"></p>
+  </div>
+  <div class="lang" role="group" aria-label="Language">
+    <button type="button" id="lang-fr" data-lang="fr">FR</button>
+    <button type="button" id="lang-en" data-lang="en">EN</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel calib" id="calib">
+    <div class="calib-text">
+      <h2 data-i18n="calibTitle"></h2>
+      <p id="calib-status"></p>
+      <p class="hint" data-i18n="calibHint"></p>
+    </div>
+    <button type="button" class="btn" id="calib-btn" data-i18n="calibrate"></button>
+  </section>
+
+  <section class="panel setup">
+    <label class="field">
+      <span data-i18n="exercise"></span>
+      <select id="exercise"></select>
+    </label>
+
+    <div class="field">
+      <span data-i18n="lines"></span>
+      <div class="chips" id="lines" role="group"></div>
+    </div>
+
+    <div class="field tempo">
+      <span data-i18n="tempo"></span>
+      <div class="tempo-row">
+        <button type="button" class="step" id="tempo-down" aria-label="-5">−5</button>
+        <output id="tempo-value" class="tempo-value">60</output>
+        <button type="button" class="step" id="tempo-up" aria-label="+5">+5</button>
+      </div>
+      <input type="range" id="tempo" min="40" max="160" step="1" value="60" aria-label="Tempo">
+    </div>
+
+    <label class="field">
+      <span data-i18n="metronome"></span>
+      <select id="metro">
+        <option value="all" data-i18n="metroAll"></option>
+        <option value="first" data-i18n="metroFirst"></option>
+        <option value="fade" data-i18n="metroFade"></option>
+        <option value="countin" data-i18n="metroCountin"></option>
+      </select>
+    </label>
+
+    <label class="check">
+      <input type="checkbox" id="guide">
+      <span data-i18n="guide"></span>
+    </label>
+  </section>
+
+  <section class="panel sheet">
+    <div class="live" aria-live="polite">
+      <span class="beat-dots" id="beat-dots"></span>
+      <span id="live-text"></span>
+      <span id="clap-count" class="clap-count"></span>
+    </div>
+    <div id="score" class="score"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="panel result" id="result" hidden>
+    <div class="result-head">
+      <h2 data-i18n="resultTitle"></h2>
+      <span class="verdict" id="verdict"></span>
+    </div>
+    <div class="big-number"><span id="percent">0</span><small>%</small></div>
+    <ul class="counts" id="counts"></ul>
+    <ul class="facts" id="facts"></ul>
+    <button type="button" class="btn" id="copy-btn" data-i18n="copy"></button>
+    <p class="hint" id="copy-status"></p>
+    <textarea id="report" readonly rows="4" aria-label="Report"></textarea>
+  </section>
+
+  <section class="panel">
+    <div class="result-head">
+      <h2 data-i18n="history"></h2>
+      <button type="button" class="btn ghost" id="copy-today" data-i18n="copyToday"></button>
+    </div>
+    <ol class="history" id="history"></ol>
+  </section>
+
+  <details class="panel">
+    <summary data-i18n="lessons"></summary>
+    <p class="hint" data-i18n="lessonsHint"></p>
+    <textarea id="lesson-input" rows="8" spellcheck="false" placeholder="# my-1 My lesson&#10;4/4&#10;q ssss ess q | sse q ee ssss"></textarea>
+    <button type="button" class="btn" id="lesson-add" data-i18n="addLessons"></button>
+    <p class="hint" id="lesson-status"></p>
+    <ul class="lesson-list" id="lesson-list"></ul>
+  </details>
+
+  <details class="panel">
+    <summary data-i18n="settings"></summary>
+    <label class="field"><span data-i18n="sensitivity"></span>
+      <input type="range" id="sensitivity" min="1" max="10" step="1" value="5"></label>
+    <label class="field"><span data-i18n="volume"></span>
+      <input type="range" id="volume" min="0.1" max="1" step="0.05" value="0.6"></label>
+    <label class="field"><span data-i18n="goodTol"></span>
+      <input type="number" id="good-tol" min="10" max="60" step="5" value="30"></label>
+    <label class="field"><span data-i18n="okTol"></span>
+      <input type="number" id="ok-tol" min="20" max="80" step="5" value="50"></label>
+    <button type="button" class="btn ghost" id="test-claps" data-i18n="testClaps"></button>
+    <p class="hint" id="test-status"></p>
+  </details>
+</main>
+
+<div class="dock">
+  <button type="button" class="go" id="go" data-i18n="start"></button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/meyda@5.6.3/dist/web/meyda.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.5/build/cjs/vexflow.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/rhythm.js"></script>
+<script src="js/scoring.js"></script>
+<script src="js/exercises.js"></script>
+<script src="js/score.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
