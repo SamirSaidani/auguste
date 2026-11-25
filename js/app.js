@@ -217,7 +217,8 @@
     const plan = {
       bpm: settings.tempo,
       beatsPerMeasure: tl.beatsPerMeasure,
-      countInBeats: Math.max(tl.beatsPerMeasure, 3),
+      // One bar of count-in (two bars in 2/4 or less, so there are at least 3 clicks).
+      countInBeats: tl.beatsPerMeasure < 3 ? 2 * tl.beatsPerMeasure : tl.beatsPerMeasure,
       totalBeats: tl.totalBeats,
       metro: settings.metro,
       fadeBars: 2,
@@ -229,9 +230,17 @@
     const res = await engine.run(plan, (ev) => {
       if (ev.clap !== undefined) { claps += 1; $('clap-count').textContent = t('claps', { n: claps }); return; }
       const b = ev.beat;
+      // Before the first count-in click, and after the last beat: nothing to show.
+      if (b < -plan.countInBeats || b >= tl.totalBeats) {
+        dots.forEach((d) => d.classList.remove('on'));
+        $('live-text').textContent = b < 0 ? t('countIn') : '';
+        if (b >= tl.totalBeats && lastMeasure !== -1) { lastMeasure = -1; view.showMeasure(-1); }
+        return;
+      }
       const inBar = Math.floor(((b % tl.beatsPerMeasure) + tl.beatsPerMeasure) % tl.beatsPerMeasure);
       dots.forEach((d, i) => d.classList.toggle('on', i === inBar));
-      $('live-text').textContent = b < 0 ? t('countIn') + ' ' + Math.ceil(-b) : t('clapNow');
+      // Count-in counts up with the beats of the bar: 1 2 3 4.
+      $('live-text').textContent = b < 0 ? t('countIn') + ' ' + (inBar + 1) : t('clapNow');
       const m = b < 0 ? -1 : Math.floor(b / tl.beatsPerMeasure);
       if (m !== lastMeasure) { lastMeasure = m; view.showMeasure(m); }
     });

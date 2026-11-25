@@ -232,14 +232,15 @@ registerProcessor('frame-tap', FrameTap);
       const off = this.on((ev) => {
         if (ev.type !== 'onset') return;
         const rel = ev.t - lat - start;
-        if (rel > -beat / 2 && rel < plan.totalBeats * beat + beat / 2) { claps.push(rel); onTick && onTick({ clap: rel }); }
+        if (rel > -beat / 2 && rel < plan.totalBeats * beat) { claps.push(rel); onTick && onTick({ clap: rel }); }
       });
       this.stopFlag = false;
       return new Promise((resolve) => {
         const tick = () => {
           const now = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
           onTick && onTick({ beat: (now - start) / beat });
-          if (this.stopFlag || ctx.currentTime > end + beat / 2 + lat) {
+          // The run ends with its last beat; only the speaker-to-mic delay (and one analysis frame) is added.
+          if (this.stopFlag || ctx.currentTime > end + lat + 0.03) {
             off();
             resolve({ claps, stopped: this.stopFlag });
           } else requestAnimationFrame(tick);
