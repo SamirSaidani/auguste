@@ -21,7 +21,7 @@ node --test "$HERE/tests/run-tests.js"
 # Looks for values (token formats, private keys, literal assignments), not for words like "password".
 AUDIT='/home/|/Users/|BEGIN [A-Z ]*PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_|glpat-|\b[0-9a-f]{40}\b|(password|secret|token|api[_-]?key)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']{8,}'
 if grep -rnIE "$AUDIT" "$HERE" \
-    --exclude-dir=.git --exclude=deploy.sh; then
+    --exclude-dir=.git --exclude-dir=tmp --exclude=deploy.sh; then
   echo "Audit failed: remove the lines above before publishing." >&2
   exit 1
 fi
@@ -29,7 +29,8 @@ fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 git clone --quiet "$REMOTE" "$WORK/repo"
-rsync -a --delete --exclude .git "$HERE/" "$WORK/repo/"
+# tmp/ holds local scratch files (backups, logs): never published.
+rsync -a --delete --exclude .git --exclude tmp "$HERE/" "$WORK/repo/"
 cd "$WORK/repo"
 git add -A
 if git diff --cached --quiet; then

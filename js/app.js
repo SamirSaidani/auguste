@@ -83,6 +83,21 @@
 
   function current() { return resolve(settings.exercise); }
 
+  // Diagnostic tests impose their metronome mode: it is part of what they measure.
+  function lockedMetro() {
+    const cur = current();
+    const isDiag = settings.exercise.startsWith('step:0:');
+    return isDiag && cur.item ? cur.item.metro : null;
+  }
+
+  function applyMetroLock() {
+    const locked = lockedMetro();
+    if (locked) settings.metro = locked;
+    $('metro').value = settings.metro;
+    $('metro').disabled = !!locked;
+    $('metro-locked').hidden = !locked;
+  }
+
   function selectedLines() {
     const n = current().lesson.lines.length;
     const valid = settings.lines.filter((i) => i < n);
@@ -609,6 +624,7 @@
   });
 
   function renderHistory() {
+    $('history-count').textContent = history.length ? '(' + history.length + ')' : '';
     const ol = $('history');
     ol.innerHTML = '';
     if (!history.length) {
@@ -696,6 +712,7 @@
     settings.lines = [];
     const cur = current();
     if (cur.metro) { settings.metro = cur.metro; $('metro').value = cur.metro; }
+    applyMetroLock();
     persist(); fillLines(); drawScore();
     $('result').hidden = true;
   });
@@ -746,7 +763,7 @@
   parseUserLessons();
   applyTexts();
   setTempo(settings.tempo);
-  $('metro').value = settings.metro;
+  applyMetroLock();
   $('guide').checked = settings.guide;
   $('sensitivity').value = settings.sensitivity;
   $('volume').value = settings.volume;

@@ -1,5 +1,5 @@
 // Service worker: makes the app installable and usable offline.
-// Strategy: serve from cache, refresh the cache in the background (stale-while-revalidate).
+// Strategy: app files network-first (cache as offline fallback), pinned libraries and fonts cache-first.
 // The cache name follows js/version.js: bump the version on each release so old caches are dropped.
 importScripts('js/version.js');
 const VERSION = 'auguste-' + self.AUGUSTE_VERSION;
@@ -40,14 +40,24 @@ const CACHED_HOSTS = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin && !CACHED_HOSTS.includes(url.hostname)) return;
-  event.respondWith(
-    caches.open(VERSION).then(async (cache) => {
-      const cached = await cache.match(event.request, { ignoreSearch: true });
-      const network = fetch(event.request)
-        .then((res) => { if (res.ok || res.type === 'opaque') cache.put(event.request, res.clone()); return res; })
-        .catch(() => cached);
-      return cached || network;
-    }),
-  );
+  const own = url.origin === self.location.origin;
+  if (!own && !CACHED_HOSTS.includes(url.hostname)) return;
+  event.respondWith(caches.open(VERSION).then(async (cache) => {
+    if (own) {
+      // App files: network first, so a new release is used at once; cache when offline.
+      try {
+        const res = await fetch(event.request, { cache: 'no-cache' });
+        if (res.ok) cache.put(event.request, res.clone());
+        return res;
+      } catch (e) {
+        return (await cache.match(event.request, { ignoreSearch: true })) || Response.error();
+      }
+    }
+    // Pinned library versions and fonts never change: cache first.
+    const cached = await cache.match(event.request);
+    if (cached) return cached;
+    const res = await fetch(event.request);
+    if (res.ok || res.type === 'opaque') cache.put(event.request, res.clone());
+    return res;
+  }));
 });

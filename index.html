@@ -65,6 +65,7 @@
         <option value="fade" data-i18n="metroFade"></option>
         <option value="countin" data-i18n="metroCountin"></option>
       </select>
+      <small class="hint" id="metro-locked" data-i18n="metroLocked" hidden></small>
     </label>
 
     <label class="check">
@@ -97,11 +98,9 @@
     <textarea id="report" readonly rows="4" aria-label="Report"></textarea>
   </section>
 
-  <section class="panel">
-    <div class="result-head">
-      <h2 data-i18n="history"></h2>
-      <button type="button" class="btn ghost" id="copy-today" data-i18n="copyToday"></button>
-    </div>
+  <details class="panel" id="history-panel">
+    <summary><span data-i18n="history"></span> <span class="count" id="history-count"></span></summary>
+    <button type="button" class="btn ghost" id="copy-today" data-i18n="copyToday"></button>
     <ol class="history" id="history"></ol>
     <div class="export">
       <button type="button" class="btn" id="export-txt" data-i18n="exportTxt"></button>
@@ -111,7 +110,7 @@
         <input type="file" id="import-json" accept="application/json,.json"></label>
     </div>
     <p class="hint" id="export-status"></p>
-  </section>
+  </details>
 
   <details class="panel">
     <summary data-i18n="lessons"></summary>
