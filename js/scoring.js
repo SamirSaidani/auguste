@@ -14,7 +14,7 @@
     minGood: 0.050,
     minOk: 0.080,
     offsetCap: 0.040, // a steady personal lead/lag up to 40 ms is not penalised
-    fitWindow: 8,     // notes used to follow the tempo in free mode
+    fitWindow: 4,     // recent claps used to follow the learner's own tempo
   };
 
   function median(values) {
@@ -38,7 +38,9 @@
 
   // notes: [{pos (beats), measure}] for sounding notes only, in order.
   // claps: clap times in seconds, relative to beat 0, latency already removed.
-  // opts: {bpm, free (bool), beatsPerMeasure, measureCount}
+  // opts: {bpm, free (bool), freeFrom (beat where the metronome stops), beatsPerMeasure, measureCount}
+  // Without a metronome nobody keeps the exact grid: from freeFrom on, claps are graded against
+  // the learner's own tempo (fitted on the last claps), and tempo keeping is measured separately.
   function score(notes, claps, opts, tol) {
     const t = Object.assign({}, DEFAULTS, tol || {});
     const beat = 60 / opts.bpm;
@@ -49,13 +51,16 @@
     const used = new Array(sorted.length).fill(false);
     const matched = [];
     const results = notes.map(() => ({ grade: 'missed', error: null, clap: null }));
+    const freeFrom = opts.free ? 0 : (opts.freeFrom === undefined ? Infinity : opts.freeFrom);
 
     notes.forEach((note, i) => {
       // Expected time: fixed grid with a metronome, followed tempo in free mode.
       let expected = note.pos * beat;
-      if (opts.free) {
+      if (note.pos >= freeFrom && matched.length) {
+        // On your own: expected one step after your last clap, at the tempo of your recent claps.
         const f = fit(matched.slice(-t.fitWindow));
-        if (f && f.b > 0) expected = f.a + f.b * note.pos;
+        const [lastPos, lastTime] = matched[matched.length - 1];
+        if (f && f.b > 0) expected = lastTime + (note.pos - lastPos) * f.b;
       }
       const prevGap = i > 0 ? note.pos - notes[i - 1].pos : 1;
       const nextGap = i < notes.length - 1 ? notes[i + 1].pos - note.pos : 1;
@@ -109,11 +114,13 @@
 
     const total = notes.length;
     const percent = total ? Math.round(100 * (counts.good + 0.5 * counts.approx) / total) : 0;
-    const tempoDev = tempo ? (tempo - opts.bpm) / opts.bpm : null;
+    // Tempo held without the metronome (silent part only), when there is one.
+    const alone = bpmOf(fit(matched.filter(([pos]) => pos >= freeFrom)));
+    const tempoDev = (alone || tempo) ? ((alone || tempo) - opts.bpm) / opts.bpm : null;
     const passed = percent >= 90 && lost === 0 && counts.extra <= Math.ceil(total * 0.05) &&
-      (!opts.free || (tempoDev !== null && Math.abs(tempoDev) <= 0.05));
+      (freeFrom === Infinity || (tempoDev !== null && Math.abs(tempoDev) <= 0.05));
 
-    return { results, counts, extras, offset, tempo, tempoDev, drift, measures, lost, percent, passed, windows: { good, ok } };
+    return { results, counts, extras, offset, tempo, tempoAlone: alone, tempoDev, drift, measures, lost, percent, passed, windows: { good, ok } };
   }
 
   return { DEFAULTS, score, median, fit };

@@ -22,10 +22,11 @@ Written by the repository sync to `runs/YYYY/MM/DD/<timestamp>-<exercise>.json`
 | `metro` | string | `all` every beat, `first` first beat, `fade` stops after 2 bars, `countin` count-in only |
 | `guide` | boolean | The rhythm was played along |
 | `percent` | number | (good + half of approx) / notes, 0 to 100 |
-| `passed` | boolean | percent ≥ 90, no lost bar, extras ≤ 5 %, and in `countin` mode tempo within ±5 % |
+| `passed` | boolean | percent ≥ 90, no lost bar, extras ≤ 5 %, and when part of the run has no metronome, `tempoAlone` within ±5 % of `bpm` |
 | `counts` | object | `good`, `approx`, `off`, `missed`, `extra` |
 | `offsetMs` | number | Median clap error in ms, negative = early |
-| `tempo` | number | Tempo actually held (linear fit of the claps), or null |
+| `tempo` | number | Tempo actually held over the whole run (linear fit of the claps), or null |
+| `tempoAlone` | number | Tempo held without the metronome (`fade` after 2 bars, `countin`), or null |
 | `driftPct` | number | Second-half tempo against first-half tempo, in %, or null |
 | `lost` | number | Bars where at least half the notes are off or missed |
 | `bars` | string | One letter per note, bars separated by spaces: `G` good, `a` approx, `x` off, `.` missed, `+n` extra claps in the bar |
@@ -34,16 +35,20 @@ Written by the repository sync to `runs/YYYY/MM/DD/<timestamp>-<exercise>.json`
 
 Grading windows, in fractions of a sixteenth note at the run's tempo: good
 within 30 % (at least 50 ms), approx within 50 % (at least 80 ms). A steady lead
-or lag up to 40 ms is compensated before grading.
+or lag up to 40 ms is compensated before grading. While the metronome plays, claps are
+graded against its grid; once it stops, each clap is graded against the learner's own
+tempo (one step after the previous clap, at the tempo of the last 4 claps), and tempo
+keeping is judged separately through `tempoAlone`.
 
 ## Text report
 
 Downloaded as `auguste-reports-YYYY-MM-DD.txt`, one block per run,
-blocks separated by a blank line. The time is local.
+blocks separated by a blank line. The time is local. `alone` (tempo held without the metronome) only appears when
+part of the run had no metronome.
 
 ```
 RT1 | 2026-11-25 21:04 | diag-3 | lines all | 60 bpm | metro all | guide off
-score 84% FAIL | good 25 | approx 4 | off 1 | missed 2 | extra 1 | offset -35ms | tempo 58.9 | drift -2.1% | lost 0 | sens 5
+score 84% FAIL | good 25 | approx 4 | off 1 | missed 2 | extra 1 | offset -35ms | tempo 58.9 | drift -2.1% | lost 0 | sens 5 | alone 58.2
 bars GGGGGG GaGG.GGG+1 GGGGGGGG GGxGGGGG
 ```
 

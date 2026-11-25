@@ -247,9 +247,10 @@
 
   function finish(cur, lines, tl, claps) {
     const notes = tl.events.filter((e) => !e.rest);
-    const free = settings.metro === 'countin';
+    // Beat where the learner is on their own: at once in count-in mode, after 2 bars in fade mode.
+    const freeFrom = settings.metro === 'countin' ? 0 : settings.metro === 'fade' ? 2 * tl.beatsPerMeasure : Infinity;
     const r = RTScoring.score(notes, claps, {
-      bpm: settings.tempo, free, beatsPerMeasure: tl.beatsPerMeasure, measureCount: tl.measures.length,
+      bpm: settings.tempo, freeFrom, beatsPerMeasure: tl.beatsPerMeasure, measureCount: tl.measures.length,
     }, { goodFrac: settings.goodTol / 100, okFrac: settings.okTol / 100 });
 
     // Colors per event (rests stay ink).
@@ -273,6 +274,7 @@
       counts: r.counts,
       offsetMs: Math.round(r.offset * 1000),
       tempo: r.tempo ? Math.round(r.tempo * 10) / 10 : null,
+      tempoAlone: r.tempoAlone ? Math.round(r.tempoAlone * 10) / 10 : null,
       driftPct: r.drift !== null ? Math.round(r.drift * 1000) / 10 : null,
       lost: r.lost,
       bars: r.measures.map((m) => m.grades.map((g) => ({ good: 'G', approx: 'a', off: 'x', missed: '.' }[g])).join('') + (m.extra ? '+' + m.extra : '')).join(' '),
@@ -302,7 +304,8 @@
       'RT' + e.v + ' | ' + when + ' | ' + e.id + ' | lines ' + e.lines + ' | ' + e.bpm + ' bpm | metro ' + e.metro + ' | guide ' + (e.guide ? 'on' : 'off'),
       'score ' + e.percent + '% ' + (e.passed ? 'PASS' : 'FAIL') + ' | good ' + c.good + ' | approx ' + c.approx + ' | off ' + c.off +
         ' | missed ' + c.missed + ' | extra ' + c.extra + ' | offset ' + e.offsetMs + 'ms | tempo ' + (e.tempo ?? '-') +
-        ' | drift ' + (e.driftPct ?? '-') + '% | lost ' + e.lost + ' | sens ' + e.sens,
+        ' | drift ' + (e.driftPct ?? '-') + '% | lost ' + e.lost + ' | sens ' + e.sens +
+        (e.tempoAlone ? ' | alone ' + e.tempoAlone : ''),
       'bars ' + e.bars,
     ].join('\n');
   }
@@ -328,7 +331,10 @@
     const add = (s) => { const li = document.createElement('li'); li.textContent = s; facts.appendChild(li); };
     if (Math.abs(e.offsetMs) < 15) add(t('offsetNone'));
     else add(t(e.offsetMs < 0 ? 'offsetEarly' : 'offsetLate', { ms: Math.abs(e.offsetMs) }));
-    if (e.tempo) {
+    if (e.tempoAlone) {
+      const dev = Math.round((e.tempoAlone - e.bpm) / e.bpm * 1000) / 10;
+      add(t('tempoAlone', { bpm: e.tempoAlone, dev: (dev > 0 ? '+' : '') + dev + ' %' }));
+    } else if (e.tempo) {
       const dev = Math.round((e.tempo - e.bpm) / e.bpm * 1000) / 10;
       add(t('tempoHeld', { bpm: e.tempo, dev: (dev > 0 ? '+' : '') + dev + ' %' }));
     }

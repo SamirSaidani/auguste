@@ -75,6 +75,24 @@ test('free mode follows a slowing tempo and reports the drift', () => {
   assert.ok(free.tempo < 60);
 });
 
+test('after the metronome stops, a steady pulse at a slightly different tempo is not marked wrong', () => {
+  const [l] = R.parseLessons('# x X\n4/4\nq q q q | q q q q | q q q q | q q q q');
+  const { notes } = notesOf(l, [0]);
+  const bpm = 87, beat = 60 / bpm;
+  for (const held of [85, 89]) {
+    const claps = notes.map((n) => (n.pos < 8 ? n.pos * beat : 8 * beat + (n.pos - 8) * 60 / held));
+    const r = S.score(notes, claps, { bpm, freeFrom: 8, beatsPerMeasure: 4, measureCount: 4 });
+    assert.strictEqual(r.percent, 100, 'held ' + held);
+    assert.ok(Math.abs(r.tempoAlone - held) < 0.2);
+    assert.ok(r.passed, 'within 5 %');
+  }
+  // Abruptly 10 % slower on your own: the pulse stays regular, so few notes are wrong, but the tempo was not kept.
+  const claps = notes.map((n) => (n.pos < 8 ? n.pos * beat : 8 * beat + (n.pos - 8) * 60 / (bpm * 0.9)));
+  const r = S.score(notes, claps, { bpm, freeFrom: 8, beatsPerMeasure: 4, measureCount: 4 });
+  assert.ok(r.percent >= 90, 'percent ' + r.percent);
+  assert.ok(!r.passed);
+});
+
 test('private Agostini transcription parses when present', (t) => {
   const file = process.env.RT_LESSONS;
   if (!file || !fs.existsSync(file)) return t.skip('RT_LESSONS not set');
