@@ -416,8 +416,12 @@
       message: 'Run ' + e.id + ' ' + e.date,
       content: b64utf8(JSON.stringify(doc, null, 1) + '\n'),
     });
-    // 409/422: the file already exists, so the run was sent before.
-    if (res.ok || res.status === 409 || res.status === 422) return true;
+    if (res.ok) return true;
+    // 409/422 usually mean the file already exists: count the run as sent only if it is really there.
+    if (res.status === 409 || res.status === 422) {
+      const check = await apiCall(cfg, 'GET', '/contents/' + runPath(e));
+      if (check.ok) return true;
+    }
     throw new Error('HTTP ' + res.status);
   }
 
@@ -441,7 +445,7 @@
   function syncPending() {
     if (!sync) return Promise.resolve({ sent: 0, error: null });
     if (syncing) return syncing;
-    syncing = (async () => {
+    const run = (async () => {
       let sent = 0;
       try {
         for (const e of history.slice().reverse()) {
@@ -456,11 +460,13 @@
       } catch (err) {
         showSync(why(err));
         return { sent, error: why(err) };
-      } finally {
-        syncing = null;
       }
     })();
-    return syncing;
+    // Released once this run is over. (Releasing inside the async function could happen before
+    // the assignment below when there is nothing to send, leaving a finished run marked busy.)
+    syncing = run;
+    run.finally(() => { if (syncing === run) syncing = null; });
+    return run;
   }
 
   function showSync(error) {
