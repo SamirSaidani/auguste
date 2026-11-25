@@ -123,5 +123,20 @@
     return { results, counts, extras, offset, tempo, tempoAlone: alone, tempoDev, drift, measures, lost, percent, passed, windows: { good, ok } };
   }
 
-  return { DEFAULTS, score, median, fit };
+  // Re-grades a stored run from its raw data (fields "raw" of a run, see docs/data-format.md),
+  // so old runs can be graded again when the grading rules change.
+  function rescore(run, tol) {
+    const raw = run.raw;
+    const notes = raw.notes.map(([pos, measure]) => ({ pos, measure }));
+    const claps = raw.claps.map((ms) => ms / 1000);
+    const opts = {
+      bpm: run.bpm,
+      freeFrom: raw.freeFromBeat === null ? Infinity : raw.freeFromBeat,
+      beatsPerMeasure: raw.beatsPerMeasure,
+      measureCount: raw.measureCount,
+    };
+    return score(notes, claps, opts, Object.assign({ goodFrac: raw.goodTol / 100, okFrac: raw.okTol / 100 }, tol || {}));
+  }
+
+  return { DEFAULTS, score, rescore, median, fit };
 });

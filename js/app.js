@@ -280,6 +280,17 @@
       bars: r.measures.map((m) => m.grades.map((g) => ({ good: 'G', approx: 'a', off: 'x', missed: '.' }[g])).join('') + (m.extra ? '+' + m.extra : '')).join(' '),
       sens: settings.sensitivity,
       appVersion: self.AUGUSTE_VERSION,
+      // Raw data: enough to grade the run again with RTScoring.rescore().
+      raw: {
+        claps: claps.map((c) => Math.round(c * 1000)),
+        notes: notes.map((n) => [n.pos, n.measure]),
+        beatsPerMeasure: tl.beatsPerMeasure,
+        measureCount: tl.measures.length,
+        freeFromBeat: freeFrom === Infinity ? null : freeFrom,
+        goodTol: settings.goodTol,
+        okTol: settings.okTol,
+        latencyMs: Math.round((engine.settings.latency || 0) * 1000),
+      },
     };
     history.unshift(entry);
     save('history', history);

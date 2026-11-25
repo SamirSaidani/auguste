@@ -93,6 +93,21 @@ test('after the metronome stops, a steady pulse at a slightly different tempo is
   assert.ok(!r.passed);
 });
 
+test('a stored run is graded again identically from its raw data', () => {
+  const [l] = R.parseLessons('# x X\n4/4\nssss ess sse q | q q h | q q q q');
+  const tl = R.timeline(l, [0]);
+  const notes = tl.events.filter((e) => !e.rest);
+  const claps = notes.map((n, i) => n.pos * 60 / 87 + (i % 3 - 1) * 0.03);
+  const opts = { bpm: 87, freeFrom: 8, beatsPerMeasure: 4, measureCount: 3 };
+  const direct = S.score(notes, claps, opts);
+  const run = { bpm: 87, raw: {
+    claps: claps.map((c) => Math.round(c * 1000)), notes: notes.map((n) => [n.pos, n.measure]),
+    beatsPerMeasure: 4, measureCount: 3, freeFromBeat: 8, goodTol: 30, okTol: 50, latencyMs: 120 } };
+  const again = S.rescore(run);
+  assert.strictEqual(again.percent, direct.percent);
+  assert.deepStrictEqual(again.results.map((r) => r.grade), direct.results.map((r) => r.grade));
+});
+
 test('private Agostini transcription parses when present', (t) => {
   const file = process.env.RT_LESSONS;
   if (!file || !fs.existsSync(file)) return t.skip('RT_LESSONS not set');

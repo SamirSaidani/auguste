@@ -31,7 +31,25 @@ Written by the repository sync to `runs/YYYY/MM/DD/<timestamp>-<exercise>.json`
 | `lost` | number | Bars where at least half the notes are off or missed |
 | `bars` | string | One letter per note, bars separated by spaces: `G` good, `a` approx, `x` off, `.` missed, `+n` extra claps in the bar |
 | `sens` | number | Clap sensitivity setting, 1 to 10 |
+| `appVersion` | string | Version of the app that graded the run (from 0.8.0) |
+| `raw` | object | Raw data to grade the run again (from 0.11.0), see below |
 | `report` | string | The same run as a text report (sync files only) |
+
+### Raw data (`raw`)
+
+| Field | Type | Meaning |
+|---|---|---|
+| `claps` | number[] | Every detected clap, in ms from beat 0 (the first beat after the count-in), speaker-to-mic delay already removed |
+| `notes` | [number, number][] | Sounding notes as `[position in beats, bar index]` |
+| `beatsPerMeasure` | number | Quarter-note beats per bar |
+| `measureCount` | number | Number of bars |
+| `freeFromBeat` | number or null | Beat from which there is no metronome (`0` in `countin`, `2 × beatsPerMeasure` in `fade`), null if the metronome plays throughout |
+| `goodTol`, `okTol` | number | Grading windows used, in % of a sixteenth note |
+| `latencyMs` | number | Speaker-to-mic delay removed from the claps |
+
+`RTScoring.rescore(run)` in `js/scoring.js` grades a run again from these fields;
+`node scripts/rescore.js <folder or run.json>...` does it for stored files and prints the
+stored score next to the score under the current rules.
 
 Grading windows, in fractions of a sixteenth note at the run's tempo: good
 within 30 % (at least 50 ms), approx within 50 % (at least 80 ms). A steady lead
