@@ -828,6 +828,7 @@
   function applyTexts() {
     document.documentElement.lang = RTi18n.lang;
     document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-label]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nLabel)); el.title = t(el.dataset.i18nLabel); });
     document.querySelectorAll('.lang button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === RTi18n.lang)));
     fillExercises();
     fillLines();
@@ -838,6 +839,13 @@
     showSync();
     if (!running) $('go').textContent = goLabel();
   }
+
+  // (i) buttons show or hide the explanation they control.
+  document.querySelectorAll('.info').forEach((b) => b.addEventListener('click', () => {
+    const box = $(b.getAttribute('aria-controls'));
+    box.hidden = !box.hidden;
+    b.setAttribute('aria-expanded', String(!box.hidden));
+  }));
 
   // ---------- boot ----------
   $('version').textContent = 'v' + self.AUGUSTE_VERSION;

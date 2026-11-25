@@ -73,10 +73,14 @@
       <span data-i18n="guide"></span>
     </label>
 
-    <label class="check">
-      <input type="checkbox" id="listen">
-      <span data-i18n="listenOnly"></span>
-    </label>
+    <div class="check-row">
+      <label class="check">
+        <input type="checkbox" id="listen">
+        <span data-i18n="listenOnly"></span>
+      </label>
+      <button type="button" class="info" aria-expanded="false" aria-controls="listen-info" data-i18n-label="moreInfo">i</button>
+    </div>
+    <p class="hint info-text" id="listen-info" data-i18n="listenInfo" hidden></p>
   </section>
 
   <section class="panel sheet">
