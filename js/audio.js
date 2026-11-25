@@ -56,15 +56,22 @@ registerProcessor('frame-tap', FrameTap);
     }
 
     // Must be called from a tap or click (browsers require a user gesture for audio).
-    async start() {
-      if (this.ctx) { await this.ctx.resume(); return; }
-      // iOS Safari: keep sound on the loudspeaker while the microphone is open.
-      try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* not supported */ }
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    // Opens audio output, and the microphone unless {mic: false} (listening only).
+    async start(opts) {
+      const withMic = !opts || opts.mic !== false;
+      if (!this.ctx) {
+        // iOS Safari: keep sound on the loudspeaker while the microphone is open.
+        try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* not supported */ }
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+        this.out = this.ctx.createGain();
+        this.out.gain.value = 0.8;
+        this.out.connect(this.ctx.destination);
+      }
       await this.ctx.resume();
-      this.out = this.ctx.createGain();
-      this.out.gain.value = 0.8;
-      this.out.connect(this.ctx.destination);
+      if (withMic && !this.stream) await this.openMic();
+    }
+
+    async openMic() {
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       });
@@ -230,7 +237,7 @@ registerProcessor('frame-tap', FrameTap);
       const claps = [];
       const lat = this.settings.latency;
       const off = this.on((ev) => {
-        if (ev.type !== 'onset') return;
+        if (ev.type !== 'onset' || plan.listen) return;
         const rel = ev.t - lat - start;
         if (rel > -beat / 2 && rel < plan.totalBeats * beat) { claps.push(rel); onTick && onTick({ clap: rel }); }
       });

@@ -199,8 +199,17 @@
   // ---------- run ----------
   let running = false;
 
+  // Listening mode: hear the rhythm to the end; no microphone, no grading, no report. Not saved: off at each launch.
+  let listenOnly = false;
+  function goLabel() { return t(listenOnly ? 'listen' : 'start'); }
+  $('listen').addEventListener('change', (e) => {
+    listenOnly = e.target.checked;
+    if (!running) $('go').textContent = goLabel();
+  });
+
   async function go() {
     if (running) { engine.stop(); return; }
+    if (listenOnly) return listen();
     try { await ensureEngine(); } catch (e) { return; }
     if (!calibration) { $('live-text').textContent = t('needCalib'); $('calib').scrollIntoView({ behavior: 'smooth' }); return; }
     const cur = current();
@@ -245,13 +254,59 @@
       if (m !== lastMeasure) { lastMeasure = m; view.showMeasure(m); }
     });
     running = false;
-    $('go').textContent = t('start');
+    $('go').textContent = goLabel();
     $('go').classList.remove('running');
     dots.forEach((d) => d.classList.remove('on'));
     $('live-text').textContent = '';
     view.showMeasure(-1);
     if (res.stopped) return;
     finish(cur, lines, tl, res.claps);
+  }
+
+  async function listen() {
+    try { await engine.start({ mic: false }); } catch (e) { return; }
+    const tl = RTRhythm.timeline(current().lesson, selectedLines());
+    drawScore();
+    running = true;
+    $('go').textContent = t('stop');
+    $('go').classList.add('running');
+    $('result').hidden = true;
+    $('clap-count').textContent = '';
+    const dots = [...$('beat-dots').children];
+    const plan = {
+      bpm: settings.tempo,
+      beatsPerMeasure: tl.beatsPerMeasure,
+      countInBeats: tl.beatsPerMeasure < 3 ? 2 * tl.beatsPerMeasure : tl.beatsPerMeasure,
+      totalBeats: tl.totalBeats,
+      metro: settings.metro,
+      fadeBars: 2,
+      guide: true, // listening means hearing the rhythm itself
+      events: tl.events,
+      volume: settings.volume,
+      listen: true,
+    };
+    let lastMeasure = -2;
+    const res = await engine.run(plan, (ev) => {
+      if (ev.beat === undefined) return;
+      const b = ev.beat;
+      if (b < -plan.countInBeats || b >= tl.totalBeats) {
+        dots.forEach((d) => d.classList.remove('on'));
+        $('live-text').textContent = b < 0 ? t('countIn') : '';
+        if (b >= tl.totalBeats && lastMeasure !== -1) { lastMeasure = -1; view.showMeasure(-1); }
+        return;
+      }
+      const inBar = Math.floor(((b % tl.beatsPerMeasure) + tl.beatsPerMeasure) % tl.beatsPerMeasure);
+      dots.forEach((d, i) => d.classList.toggle('on', i === inBar));
+      $('live-text').textContent = b < 0 ? t('countIn') + ' ' + (inBar + 1) : t('listen');
+      const m = b < 0 ? -1 : Math.floor(b / tl.beatsPerMeasure);
+      if (m !== lastMeasure) { lastMeasure = m; view.showMeasure(m); }
+    });
+    running = false;
+    $('go').textContent = goLabel();
+    $('go').classList.remove('running');
+    dots.forEach((d) => d.classList.remove('on'));
+    view.showMeasure(-1);
+    $('live-text').textContent = res.stopped ? '' : t('listenDone');
   }
 
   function finish(cur, lines, tl, claps) {
@@ -781,7 +836,7 @@
     renderHistory();
     renderLessons();
     showSync();
-    if (!running) $('go').textContent = t('start');
+    if (!running) $('go').textContent = goLabel();
   }
 
   // ---------- boot ----------
